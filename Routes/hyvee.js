@@ -17,6 +17,9 @@ let METRICS = [];
 let ERRORS = [];
 
 module.exports = function(app) {
+  app.get('/hyvee/metrics', (req, res) => {
+    res.json(getAllMetrics());
+  });
   app.get('/hyvee/metrics/:hours', (req, res) => {
     res.json(getMetrics(req.params.hours));
   });
@@ -74,7 +77,7 @@ function searchPharmacies() {
         METRICS.push({vaccineFound: false, date: new Date()});
       }
     }).catch(err => {
-      ERRORS.push({error: err.response, date: new Date()});
+      ERRORS.push({type: 'query', date: new Date()});
       let applicationError = 'Application Error';
       if (err.response) {
         if (err.response.status) {applicationError += `\n${err.response.status}`}
@@ -97,6 +100,7 @@ function notifyWithPushed(appKey, appSecret, targetAlias, content) {
     console.log(content);
     console.log('-----------------------------');
   }).catch(err => {
+    ERRORS.push({type: 'pushed', date: new Date()});
     console.log(err.data ? err.data : err);
   });
 }
@@ -113,7 +117,17 @@ function getMetrics(hours) {
   return ({
     vaccineFound: METRICS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && m.vaccineFound).length,
     vaccineNotFound: METRICS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && !m.vaccineFound).length,
-    queryErrors: ERRORS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000)).length
+    queryErrors: ERRORS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && type === 'query').length,
+    pushedErrors: ERRORS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && type === 'pushed').length
+  });
+}
+
+function getAllMetrics() {
+  return ({
+    vaccineFound: METRICS.filter(m => m.vaccineFound).length,
+    vaccineNotFound: METRICS.filter(m => !m.vaccineFound).length,
+    queryErrors: ERRORS.filter(m => type === 'query').length,
+    pushedErrors: ERRORS.filter(m => type === 'pushed').length
   });
 }
 
