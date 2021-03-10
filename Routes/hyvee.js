@@ -138,7 +138,3 @@ function deleteOldMetrics() {
 setInterval(() => {
   searchPharmacies();
 }, 1 * 1000);
-
-setInterval(() => {
-  deleteOldMetrics();
-}, 60 * 60 * 1000);
