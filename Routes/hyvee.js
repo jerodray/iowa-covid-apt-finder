@@ -19,6 +19,8 @@ let VACCINE_NOT_FOUND = 0;
 let QUERY_ERROR = 0;
 let PUSHED_ERROR = 0;
 let LAST_5_ERRORS = [{}, {}, {}, {}, {}]
+let LAST_VACCINE_FOUND_TIME = '';
+let LAST_VACCINE_NOT_FOUND_TIME = '';
 
 module.exports = function(app) {
   app.get('/hyvee/metrics', (req, res) => {
@@ -120,8 +122,10 @@ function searchPharmacies() {
       if (pharmaciesWithVaccines.length > 0) {
         notifyVaccineFound(pharmaciesWithVaccines);
         VACCINE_FOUND += 1
+        LAST_VACCINE_FOUND_TIME = new Date();
       } else {
         VACCINE_NOT_FOUND += 1
+        LAST_VACCINE_NOT_FOUND_TIME = new Date();
       }
     }).catch(err => {
       QUERY_ERROR += 1;
@@ -164,7 +168,9 @@ function getAllMetrics() {
     vaccineFound: VACCINE_FOUND,
     vaccineNotFound: VACCINE_NOT_FOUND,
     queryErrors: QUERY_ERROR,
-    pushedErrors: PUSHED_ERROR
+    pushedErrors: PUSHED_ERROR,
+    lastVaccineFound: LAST_VACCINE_FOUND_TIME ? LAST_VACCINE_FOUND_TIME.toLocaleString("en-US", {timeZone: "America/New_York"}) : 'none',
+    lastVaccineNotFound: LAST_VACCINE_NOT_FOUND_TIME ? LAST_VACCINE_NOT_FOUND_TIME.toLocaleString("en-US", {timeZone: "America/New_York"}) : 'none'
   });
 }
 
