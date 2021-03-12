@@ -12,30 +12,70 @@ const PUSHED_CHANNELS = {
   dev: '1XlSHa'
 }
 
-let LAST_NOTIFIED_PHARMACIES = [];
-let METRICS = [];
-let ERRORS = [];
+let NEW_PHARMACY_RECORDS = [[], [], []];
+let OLD_PHARMACY_RECORDS = [[], [], []];
+let VACCINE_FOUND = 0;
+let VACCINE_NOT_FOUND = 0;
+let QUERY_ERROR = 0;
+let PUSHED_ERROR = 0;
 
 module.exports = function(app) {
   app.get('/hyvee/metrics', (req, res) => {
     res.json(getAllMetrics());
   });
-  app.get('/hyvee/metrics/:hours', (req, res) => {
-    res.json(getMetrics(req.params.hours));
-  });
 }
 
 function notifyVaccineFound(pharmacies) {
-  if (JSON.stringify(pharmacies) !== JSON.stringify(LAST_NOTIFIED_PHARMACIES)) {
-    notifyWithPushed(PUSHED_APP_KEY, PUSHED_APP_SECRET, PUSHED_CHANNELS.users, printVaccineFound(pharmacies));
-    LAST_NOTIFIED_PHARMACIES = pharmacies;
+  shiftPharmacyRecordArrays(pharmacies);
+  if (notificationLowPassFilter()) {
+    if (notificationLossOfPharmacyFilter()) {
+      notifyWithPushed(PUSHED_APP_KEY, PUSHED_APP_SECRET, PUSHED_CHANNELS.users, printVaccineFound(pharmacies));
+    }
+  }
+}
+
+function shiftPharmacyRecordArrays(pharmacies) {
+  NEW_PHARMACY_RECORDS.push(pharmacies);
+  OLD_PHARMACY_RECORDS.push(NEW_PHARMACY_RECORDS.shift());
+  OLD_PHARMACY_RECORDS.shift();
+}
+
+function notificationLowPassFilter() {
+  if (pharmacyArrayHomogenous(NEW_PHARMACY_RECORDS)) {
+    if (pharmacyArrayHomogenous(OLD_PHARMACY_RECORDS)) {
+      if (!pharmacyArraysEqual(OLD_PHARMACY_RECORDS[0], NEW_PHARMACY_RECORDS[0])) {
+        return true;
+      }
+    }
+  }
+  return false
+}
+
+function pharmaciesEqual(a, b) {
+  return a.location.locationId === b.location.locationId;
+}
+
+function pharmacyArraysEqual(arrayA, arrayB) {
+  return arrayA.length === arrayB.length && arrayA.every(a => arrayB.some(b => pharmaciesEqual(a, b)));
+}
+
+function pharmacyArrayHomogenous(array) {
+  return array.every(pharmacyArray => pharmacyArraysEqual(pharmacyArray, array[0]))
+}
+
+function notificationLossOfPharmacyFilter() {
+  const newPharmacyRecrord = NEW_PHARMACY_RECORDS[0];
+  const oldPharmacyRecord = OLD_PHARMACY_RECORDS[0];
+  let newUniquePharmacyRecords = newPharmacyRecrord.filter(n => oldPharmacyRecord.every(o => !pharmaciesEqual(n, o)));
+  if (newUniquePharmacyRecords.length > 0) {
+    return true;
   }
 }
 
 function searchPharmacies() {
     fetch({
       query: `
-      query SearchPharmaciesNearPointWithCovidVaccineAvailability($latitude: Float!, $longitude: Float!, $radius: Int! = 10) {
+      query SearchPharmaciesNearPointWithCovidVaccineAvailability($latitude: Float!, $longitude: Float!, $radius: Int! = 50) {
         searchPharmaciesNearPoint(latitude: $latitude, longitude: $longitude, radius: $radius) {
           distance
           location {
@@ -64,27 +104,25 @@ function searchPharmacies() {
     `,
     variables: {
       "radius": 50,
-      "latitude": 41.7317884,
-      "longitude": -93.6001278
+      // "latitude": 41.7317884,    // Ankeny 
+      // "longitude": -93.6001278,  // Ankeny
+      "latitude": 42.0494674,         // Marshaltown
+      "longitude": -92.90803749999999 // Marshaltown
     }
     }).then(res => {
       let pharmacies = res.data.searchPharmaciesNearPoint;
       let pharmaciesWithVaccines = pharmacies.filter(p => p && p.location && p.location.isCovidVaccineAvailable);
       if (pharmaciesWithVaccines.length > 0) {
         notifyVaccineFound(pharmaciesWithVaccines);
-        METRICS.push({vaccineFound: true, date: new Date()});
+        VACCINE_FOUND += 1
       } else {
-        METRICS.push({vaccineFound: false, date: new Date()});
+        VACCINE_NOT_FOUND += 1
       }
     }).catch(err => {
-      ERRORS.push({type: 'query', date: new Date()});
-      let applicationError = 'Application Error';
-      if (err.response) {
-        if (err.response.status) {applicationError += `\n${err.response.status}`}
-        if (err.response.data) {applicationError += `\n${err.response.data}`}
-      }
+      QUERY_ERROR += 1;
+      let applicationError = `Application Error\n${err}`;
       notifyWithPushed(PUSHED_APP_KEY, PUSHED_APP_SECRET, PUSHED_CHANNELS.dev, applicationError);
-      console.log('error:', err.response ? err.response : err);
+      console.log(applicationError);
     });
 }
 
@@ -100,39 +138,27 @@ function notifyWithPushed(appKey, appSecret, targetAlias, content) {
     console.log(content);
     console.log('-----------------------------');
   }).catch(err => {
-    ERRORS.push({type: 'pushed', date: new Date()});
-    console.log(err.data ? err.data : err);
+    PUSHED_ERROR += 1;
+    console.log(err.data.message);
   });
 }
 
 function printVaccineFound(pharmacies) {
   let output = 'Vaccine Availible at Hyvee!';
   pharmacies.forEach(p => {
-    output += `\n${p.location.address.line1} ${p.location.address.city}, ${p.location.address.state} ${p.location.address.zip}\n${p.distance} mi Away\n${p.location.covidVaccineEligibilityTerms}`;
+    output += `\n${p.location.address.zip} | ${Math.round(p.distance)} mi`;
+    // output += `\n${p.location.address.line1} ${p.location.address.city}, ${p.location.address.state} ${p.location.address.zip}\n${p.distance} mi Away\n${p.location.covidVaccineEligibilityTerms}`;
   });
   return output;
 }
 
-function getMetrics(hours) {
-  return ({
-    vaccineFound: METRICS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && m.vaccineFound).length,
-    vaccineNotFound: METRICS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && !m.vaccineFound).length,
-    queryErrors: ERRORS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && type === 'query').length,
-    pushedErrors: ERRORS.filter(m => new Date() - m.date < (hours * 60 * 60 * 1000) && type === 'pushed').length
-  });
-}
-
 function getAllMetrics() {
   return ({
-    vaccineFound: METRICS.filter(m => m.vaccineFound).length,
-    vaccineNotFound: METRICS.filter(m => !m.vaccineFound).length,
-    queryErrors: ERRORS.filter(m => type === 'query').length,
-    pushedErrors: ERRORS.filter(m => type === 'pushed').length
+    vaccineFound: VACCINE_FOUND,
+    vaccineNotFound: VACCINE_NOT_FOUND,
+    queryErrors: QUERY_ERROR,
+    pushedErrors: PUSHED_ERROR
   });
-}
-
-function deleteOldMetrics() {
-  METRICS = METRICS.filter((m => new Date() - m.date < (24 * 60 * 60 * 1000)));
 }
 
 setInterval(() => {
