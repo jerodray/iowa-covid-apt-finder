@@ -116,7 +116,7 @@ function searchPharmacies() {
     }
     }).then(res => {
       let pharmacies = res.data.searchPharmaciesNearPoint;
-      let pharmaciesWithVaccines = pharmacies.filter(p => p && p.location && p.location.isCovidVaccineAvailable);
+      let pharmaciesWithVaccines = pharmacies && pharmacies.filter(p => p && p.location && p.location.isCovidVaccineAvailable);
       if (pharmaciesWithVaccines.length > 0) {
         notifyVaccineFound(pharmaciesWithVaccines);
         VACCINE_FOUND += 1
