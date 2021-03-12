@@ -18,10 +18,15 @@ let VACCINE_FOUND = 0;
 let VACCINE_NOT_FOUND = 0;
 let QUERY_ERROR = 0;
 let PUSHED_ERROR = 0;
+let LAST_5_ERRORS = [{}, {}, {}, {}, {}]
 
 module.exports = function(app) {
   app.get('/hyvee/metrics', (req, res) => {
     res.json(getAllMetrics());
+  });
+
+  app.get('/hyvee/errors', (req, res) => {
+    res.json(LAST_5_ERRORS);
   });
 }
 
@@ -121,7 +126,9 @@ function searchPharmacies() {
     }).catch(err => {
       QUERY_ERROR += 1;
       let applicationError = `Application Error\n${err}`;
-      notifyWithPushed(PUSHED_APP_KEY, PUSHED_APP_SECRET, PUSHED_CHANNELS.dev, applicationError);
+      // notifyWithPushed(PUSHED_APP_KEY, PUSHED_APP_SECRET, PUSHED_CHANNELS.dev, applicationError);
+      LAST_5_ERRORS.push({date: new Date(), error: applicationError});
+      LAST_5_ERRORS.shift();
       console.log(applicationError);
     });
 }
