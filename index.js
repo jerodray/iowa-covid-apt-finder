@@ -13,6 +13,10 @@ app
   .use(cors())
   .use(cookieParser());
 
+app.get('/ping', (req, res) => {
+  res.json();
+});
+
 require("./Routes/hyvee")(app);
 
 const PORT = process.env.PORT || 3100;
