@@ -50,7 +50,7 @@ function shiftPharmacyRecordArrays(pharmacies) {
 function notificationLowPassFilter() {
   if (pharmacyArrayHomogenous(NEW_PHARMACY_RECORDS)) {
     if (pharmacyArrayHomogenous(OLD_PHARMACY_RECORDS)) {
-      if (!pharmacyArraysEqual(OLD_PHARMACY_RECORDS[0], NEW_PHARMACY_RECORDS[0])) {
+      if (!pharmacyArraysEqual(OLD_PHARMACY_RECORDS[0], NEW_PHARMACY_RECORDS[0])) { // Don't need this, case covered by notificationLossOfPharmacyFilter
         return true;
       }
     }
@@ -110,11 +110,11 @@ function searchPharmacies() {
       }
     `,
     variables: {
-      "radius": 50,
-      // "latitude": 41.7317884,    // Ankeny 
-      // "longitude": -93.6001278,  // Ankeny
-      "latitude": 42.0494674,         // Marshaltown
-      "longitude": -92.90803749999999 // Marshaltown
+      "radius": 100,
+      "latitude": 41.7317884,    // Ankeny 
+      "longitude": -93.6001278,  // Ankeny
+      // "latitude": 42.0494674,         // Marshaltown
+      // "longitude": -92.90803749999999 // Marshaltown
     }
     }).then(res => {
       let pharmacies = res.data.searchPharmaciesNearPoint;
