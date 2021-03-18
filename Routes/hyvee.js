@@ -155,7 +155,7 @@ function notifyWithPushed(appKey, appSecret, targetAlias, content) {
 }
 
 function printVaccineFound(pharmacies) {
-  let output = 'Vaccine Availible at Hyvee!';
+  let output = 'Vaccine Available at Hyvee!';
   pharmacies.forEach(p => {
     output += `\n${p.location.address.zip} | ${Math.round(p.distance)} mi`;
     // output += `\n${p.location.address.line1} ${p.location.address.city}, ${p.location.address.state} ${p.location.address.zip}\n${p.distance} mi Away\n${p.location.covidVaccineEligibilityTerms}`;
